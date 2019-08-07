@@ -1,2 +1,2 @@
-# pygame
-Repository for Pygame projects
+# Simulations
+Repository for extending simulation and game projects.
