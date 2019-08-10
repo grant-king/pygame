@@ -25,7 +25,7 @@ class Cell(pygame.sprite.Sprite):
 
         self.alive = living
 
-    def update(self, events_list):
+    def update(self):
         self.update_states()
         self.draw()
 
@@ -46,20 +46,81 @@ class Grid:
         self.CELL_SIZE = cell_size
 
         self.cells = []
-        self.columns = self.SCREEN_SIZE[0] // self.CELL_SIZE
-        self.rows = self.SCREEN_SIZE[1] // self.CELL_SIZE
-        
+        self.num_columns = self.SCREEN_SIZE[0] // self.CELL_SIZE
+        self.num_rows = self.SCREEN_SIZE[1] // self.CELL_SIZE
+        self.current_states = []
         self.build_cells()
 
     def build_cells(self):
-        for col_idx in range(self.columns):
-            for row_idx in range(self.rows):
-                self.cells.append(Cell(self.CELL_SIZE, col_idx, row_idx, random.choice([True, False])))
+        self.cells = [[0 for row in range(self.num_rows)] for column in range(self.num_columns)]
+        for col_idx in range(self.num_columns):
+            for row_idx in range(self.num_rows):
+                self.cells[col_idx][row_idx] = Cell(self.CELL_SIZE, col_idx, row_idx, random.choice([True, False]))
     
     def get_cell(self, col_idx, row_idx):
         for cell in self.cells:
             if cell.column_idx == col_idx and cell.row_idx == row_idx:
                     return cell
+
+    def update(self):
+        self.update_states()
+        self.update_draw()
+    
+    def update_draw(self):
+        for cell_row in self.cells:
+            for cell in cell_row:
+                cell.update()
+
+    def update_states(self):
+        #capture 2d bool array of current states
+        self.current_states = [[0 for row in range(self.num_rows)] for column in range(self.num_columns)]
+        for column in range(self.num_columns):
+            for row in range(self.num_rows):
+                self.current_states[column][row] = self.cells[column][row].alive
+
+        for cell_row in self.cells:
+            for cell in cell_row:
+                cidx, ridx = cell.column_idx, cell.row_idx
+                #wrap screen
+                if ridx == self.num_rows - 1:
+                    rplus = 0
+                else:
+                    rplus = ridx + 1
+                if ridx == 0:
+                    rminus = self.num_rows - 1
+                else:
+                    rminus = ridx - 1
+                if cidx == self.num_columns - 1:
+                    cplus = 0
+                else:
+                    cplus = cidx + 1
+                if cidx == 0:
+                    cminus = self.num_columns - 1
+                else:
+                    cminus = cidx - 1
+
+                #north, ne, e, se, s, sw, w, nw
+                neighbors = [
+                    self.current_states[cidx][rminus],
+                    self.current_states[cplus][rminus],
+                    self.current_states[cplus][ridx],
+                    self.current_states[cplus][rplus],
+                    self.current_states[cidx][rplus],
+                    self.current_states[cminus][rplus],
+                    self.current_states[cminus][ridx], 
+                    self.current_states[cminus][rminus],
+                    ]
+
+                neighborhood = sum(neighbors)
+                if cell.alive:
+                    if neighborhood < 2 or neighborhood > 3:
+                        cell.alive = False
+                else:
+                    if neighborhood == 3:
+                        cell.alive = True
+
+
+
 
 
 
