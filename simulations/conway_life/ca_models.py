@@ -1,6 +1,22 @@
 import pygame
 from pygame.locals import *
 import random
+import os
+
+class Capture:
+    def __init__(self):
+        os.chdir('D:/chaos/ca1')
+        self.main_window = pygame.display.get_surface()
+    
+    @property
+    def capture_counter(self):
+        return len(os.listdir())
+
+    def screen_shot(self):
+        filename = f'b_{self.capture_counter}.png'
+        pygame.image.save(self.main_window, filename)
+        print(f'Screenshot captured as {filename}')
+
 
 class Mark(pygame.sprite.Sprite):
     def __init__(self, height, start_x):
@@ -51,9 +67,11 @@ class Cell(pygame.sprite.Sprite):
         self.column_idx = column_idx
         self.row_idx = row_idx
 
-        red = random.randint(10, 200)
-        blue = random.randint(10, 200)
-        self.color = [red, abs(red-blue), blue]
+        red = random.randint(100, 250)
+        green = random.randint(5, 25)
+        blue = random.randint(9, red)
+        self.color = [red, green, blue]
+        self.original_color = [red, green, blue]
         self.size = [square_size, square_size]
         self.surface = pygame.Surface(self.size)
         self.surface.fill(self.color)
@@ -72,11 +90,26 @@ class Cell(pygame.sprite.Sprite):
         main_window = pygame.display.get_surface()
         main_window.blit(self.surface, self.rect)
 
+    def age_color(self, older=True):
+        for idx, component in enumerate(self.color):
+            if older:
+                if component < 245:
+                    self.color[idx] += 1
+            else:
+                if component > 20:
+                    self.color[idx] -= 1
+                else:
+                    self.color[idx] = random.choice([self.original_color[idx], random.randint((idx + 1) * 25, (idx + 1) * 50)])
+
+
     def update_states(self):
         if self.alive:
+            self.age_color()
             self.surface.fill(self.color)
         else:
-            self.surface.fill([0, 0, 0])
+            self.age_color(older=False)
+            inverse = [255-component for component in self.color]
+            self.surface.fill(inverse)
 
     
 class Grid:
@@ -85,6 +118,7 @@ class Grid:
         self.CELL_SIZE = cell_size
 
         self.cells = []
+        self.total_cells = 0
         self.cells_history = [] #list of sum of bools state history
         self.num_columns = self.SCREEN_SIZE[0] // self.CELL_SIZE
         self.num_rows = self.SCREEN_SIZE[1] // self.CELL_SIZE
@@ -117,6 +151,7 @@ class Grid:
             for row_idx in range(self.num_rows):
                 
                 self.cells[col_idx][row_idx] = Cell(self.CELL_SIZE, col_idx, row_idx)
+                self.total_cells += 1
 
     def update(self):
         self.update_states()
@@ -141,7 +176,6 @@ class Grid:
                 neighbors = self.get_neighbors(cell)
                 cell.neighborhood = sum(neighbors)
 
-                #self.conway_rules(cell)
                 self.rule_set.apply_rules(cell)
     
     def sum_states(self):
