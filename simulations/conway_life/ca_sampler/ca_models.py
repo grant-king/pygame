@@ -2,6 +2,16 @@ import pygame
 from pygame.locals import *
 import random
 import os
+import logging
+import piexif
+from time import time, ctime
+
+logging.basicConfig(
+    filename = 'simulation.log', 
+    level = logging.DEBUG, 
+    format = '%(levelname)s: %(message)s', 
+    filemode='a'
+    )
 
 class Capture:
     def __init__(self):
@@ -15,7 +25,11 @@ class Capture:
     def screen_shot(self):
         filename = f'b_{self.capture_counter}.png'
         pygame.image.save(self.main_window, filename)
-        print(f'Screenshot captured as {filename}')
+        logging.info(f'Screenshot captured as {filename}')
+        self.write_exif()
+
+    def write_exif(self):
+        pass
 
 
 class Mark(pygame.sprite.Sprite):
@@ -125,6 +139,7 @@ class Grid:
         self.rule_set = Ruleset(rule_name)
         self.build_cells()
 
+        logging.info(f'Grid initialized with {self.rule_set.name} rule at {ctime()}')
           
     def check_static(self):
         if len(self.cells_history) > 24:
@@ -176,6 +191,8 @@ class Grid:
                 cell.neighborhood = sum(neighbors)
 
                 self.rule_set.apply_rules(cell)
+            
+        self.rule_set.add_tick()
     
     def sum_states(self):
         total = 0
@@ -185,7 +202,9 @@ class Grid:
         return total
 
     def set_rules(self, name):
+        logging.info(f'Ending ruleset: {self.rule_set} after {self.rule_set.run_ticks} ticks')
         self.rule_set = Ruleset(name)
+        logging.info(f'Starting ruleset: {self.rule_set}')
     
     def get_neighbors(self, cell):
         cidx, ridx = cell.column_idx, cell.row_idx
@@ -247,10 +266,12 @@ class Ruleset:
             'seeds': {'survive': [], 'born': [2]}, 
             'serviettes': {'survive': [], 'born': [2, 3, 4]},
             'stains': {'survive': [2, 3, 5, 6, 7, 8], 'born': [3, 6, 7, 8]},
-            'walledcities': {'survive': [2, 3, 4, 5], 'born': [4, 5, 6, 7, 8]}
+            'walledcities': {'survive': [2, 3, 4, 5], 'born': [4, 5, 6, 7, 8]},
         }
+        self.init_time = time()
         self.name = name
         self.rule_set = RULE_SETS[self.name]
+        self.run_ticks = 0
 
     def apply_rules(self, cell):
         if cell.alive:
@@ -258,10 +279,17 @@ class Ruleset:
                 cell.alive = False
         else:
             if cell.neighborhood in self.rule_set['born']:
-                cell.alive = True        
+                cell.alive = True
+
+    def add_tick(self):
+        self.run_ticks += 1
 
     def __eq__(self, other):
         if self.name == other.name:
             return True
         return False
 
+    def __str__(self):
+        return f'{self.name}'
+
+    
