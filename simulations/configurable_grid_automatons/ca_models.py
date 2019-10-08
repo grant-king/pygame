@@ -1,9 +1,15 @@
 import pygame
-# from pygame.locals import 
 import random
 import os
 import logging
 from time import time, ctime
+
+logging.basicConfig(
+    filename = 'simulation.log', 
+    level = logging.DEBUG, 
+    format = '%(levelname)s: %(message)s', 
+    filemode='a'
+    )
 
 class Grid:
     def __init__(self, cell_size, rule_name):
@@ -19,7 +25,7 @@ class Grid:
         self.rule_set = Ruleset(rule_name)
         self.build_cells()
 
-        logging.info(f'Grid initialized with {self.rule_set.name} rule at {ctime()}')
+        logging.info(f'Grid initialized with {self.rule_set.name} rule at {ctime()} with {self.total_cells} cells')
           
     def check_static(self):
         if len(self.cells_history) > 24:
@@ -63,7 +69,7 @@ class Grid:
             for row in range(self.num_rows):
                 self.current_states[column][row] = self.cells[column][row].alive
 
-        self.cells_history.append(self.sum_states())
+        #self.cells_history.append(self.sum_states())
 
         for cell_row in self.cells:
             for cell in cell_row:
@@ -121,7 +127,7 @@ class Grid:
         return neighbors
 
 
-class Cell(pygame.sprite.Sprite):
+class Cell:
     def __init__(self, square_size, column_idx, row_idx, living=False):
         super(Cell, self).__init__()
         
@@ -133,9 +139,9 @@ class Cell(pygame.sprite.Sprite):
         self.column_idx = column_idx
         self.row_idx = row_idx
 
-        red = random.randint(100, 250)
+        red = random.randint(150, 250)
         green = random.randint(5, 25)
-        blue = random.randint(9, red)
+        blue = random.randint(green, red)
         self.color = [red, green, blue]
         self.original_color = [red, green, blue]
         self.size = [square_size, square_size]
@@ -169,10 +175,8 @@ class Cell(pygame.sprite.Sprite):
 
     def update_states(self):
         if self.alive:
-            self.age_color()
             self.surface.fill(self.color)
         else:
-            self.age_color(older=False)
             inverse = [255-component for component in self.color]
             self.surface.fill(inverse)
 
@@ -227,3 +231,7 @@ class Ruleset:
 
     def __str__(self):
         return f'{self.name}'
+
+class CellStamp:
+    def __init__():
+        pass
