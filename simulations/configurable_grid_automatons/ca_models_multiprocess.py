@@ -3,8 +3,8 @@ import random
 import os
 import logging
 import numpy as np
-import numba
-from numba import jit
+#import numba
+#from numba import jit
 from time import time, ctime
 
 logging.basicConfig(
@@ -45,7 +45,6 @@ class Grid:
         self.cells = [[0 for row in range(self.num_rows)] for column in range(self.num_columns)]
         for col_idx in range(self.num_columns):
             for row_idx in range(self.num_rows):
-                
                 self.cells[col_idx][row_idx] = Cell(self.CELL_SIZE, col_idx, row_idx)
                 self.total_cells += 1
 
@@ -60,15 +59,21 @@ class Grid:
 
     def update_states(self):
         self.update_current_states()
-
-        for cell_row in self.cells:
-            for cell in cell_row:
-                cell.get_neighbors(self)
+        
+        for col_idx, cell_row in enumerate(self.cells):
+            for row_idx, cell in enumerate(cell_row):
+                #if first or last, wrap from edge
+                if row_idx == 0 or row_idx == self.num_rows or col_idx == 0 or col_idx == self.num_columns:
+                    pass    
+                else:
+                    neighborhood = self.current_states[row_idx-1:row_idx+2, col_idx-1:col_idx+2].copy()
+                    neighborhood[1, 1] = 0
+                    cell.set_neighbors(neighborhood)
+                    
                 self.rule_set.apply_rules(cell)
             
         self.rule_set.add_tick()
 
-    @jit(nopython=True)
     def update_current_states(self):
         #capture 2d bool array of current states
         self.current_states = np.zeros(shape=(self.num_rows, self.num_columns))
@@ -80,6 +85,38 @@ class Grid:
         logging.info(f'Ending ruleset: {self.rule_set} after {self.rule_set.run_ticks} ticks')
         self.rule_set = Ruleset(name)
         logging.info(f'Starting ruleset: {self.rule_set}')
+
+    def wrap_screen(self, ridx, cidx):
+        #wrap screen
+        if ridx == grid.num_rows - 1:
+            rplus = 0
+        else:
+            rplus = ridx + 1
+        if ridx == 0:
+            rminus = grid.num_rows - 1
+        else:
+            rminus = ridx - 1
+        if cidx == grid.num_columns - 1:
+            cplus = 0
+        else:
+            cplus = cidx + 1
+        if cidx == 0:
+            cminus = grid.num_columns - 1
+        else:
+            cminus = cidx - 1
+
+        #north, ne, e, se, s, sw, w, nw
+        neighbors = [
+            self.current_states[rminus, cidx],
+            self.current_states[rminus, cplus],
+            self.current_states[ridx, cplus],
+            self.current_states[rplus, cplus],
+            self.current_states[rplus, cidx],
+            self.current_states[rplus, cminus],
+            self.current_states[ridx, cminus], 
+            self.current_states[rminus, cminus],
+            ]
+
 
 class Cell:
     def __init__(self, square_size, column_idx, row_idx, living=False):
@@ -105,7 +142,8 @@ class Cell:
         self.rect.move_ip(self.START_LOC)
 
         self.alive = living
-        self.neighborhood = 0
+        self.neighborhood_array = np.zeros(shape=(3, 3))
+        self.neighborhood_sum = 0
 
     def update(self):
         self.update_states()
@@ -133,43 +171,9 @@ class Cell:
             inverse = [255-component for component in self.color]
             self.surface.fill(inverse)
 
-    def get_neighbors(self, grid):
-        cidx = ridx = 0
-        cidx  = self.column_idx
-        ridx = self.row_idx
-        #wrap screen
-        if ridx == grid.num_rows - 1:
-            rplus = 0
-        else:
-            rplus = ridx + 1
-        if ridx == 0:
-            rminus = grid.num_rows - 1
-        else:
-            rminus = ridx - 1
-        if cidx == grid.num_columns - 1:
-            cplus = 0
-        else:
-            cplus = cidx + 1
-        if cidx == 0:
-            cminus = grid.num_columns - 1
-        else:
-            cminus = cidx - 1
-
-        neighbors = np.zeros(shape=(grid.num_rows, grid.num_columns), dtype=np.int8)
-
-        #north, ne, e, se, s, sw, w, nw
-        neighbors = [
-            grid.current_states[rminus, cidx],
-            grid.current_states[rminus, cplus],
-            grid.current_states[ridx, cplus],
-            grid.current_states[rplus, cplus],
-            grid.current_states[rplus, cidx],
-            grid.current_states[rplus, cminus],
-            grid.current_states[ridx, cminus], 
-            grid.current_states[rminus, cminus],
-            ]
-
-        self.neighborhood = sum(neighbors)
+    def set_neighbors(self, neighborhood_array): 
+        self.neighborhood_array = neighborhood_array
+        self.neighborhood_sum = int(neighborhood_array.sum())
 
 
 class Ruleset:
@@ -206,10 +210,10 @@ class Ruleset:
     
     def apply_rules(self, cell):
         if cell.alive:
-            if cell.neighborhood not in self.rule_set['survive']:
+            if cell.neighborhood_sum not in self.rule_set['survive']:
                 cell.alive = False
         else:
-            if cell.neighborhood in self.rule_set['born']:
+            if cell.neighborhood_sum in self.rule_set['born']:
                 cell.alive = True
 
     def add_tick(self):
