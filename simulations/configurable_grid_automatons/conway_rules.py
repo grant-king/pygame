@@ -3,7 +3,7 @@ from pygame.locals import KEYDOWN, K_ESCAPE, QUIT
 from ca_models_multiprocess import Grid
 import random
 
-SCREEN_SIZE = [1200, 900]
+SCREEN_SIZE = [1000, 1000]
 CELL_SIZE = 15
 BACKGROUND_COLOR = [0, 0, 0]
 DEAD_RATIO = 1 / 3
@@ -29,7 +29,9 @@ def main_loop():
     chances.append(0)
     for cell_row in grid.cells:
         for cell in cell_row:
-            cell.alive = random.choice(chances)
+            cell.toggle_cell(random.choice(chances))
+
+    grid.manual_update_states()
 
     running = True
     while running:
