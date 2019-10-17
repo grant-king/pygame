@@ -3,8 +3,8 @@ import random
 import os
 import logging
 import numpy as np
-import numba
-from numba import njit, jit, int8, int32, jitclass
+import torch
+
 from time import time, ctime
 
 logging.basicConfig(
@@ -24,7 +24,7 @@ class Grid:
         self.cells_history = [] #list of sum of bools state history
         self.num_columns = self.SCREEN_SIZE[0] // self.CELL_SIZE
         self.num_rows = self.SCREEN_SIZE[1] // self.CELL_SIZE
-        self.current_states = [[]]
+        self.current_states = torch.zeros((self.num_rows, self.num_columns), dtype=torch.bool).cuda()
         self.rule_set = Ruleset(rule_name)
         self.build_cells()
 
@@ -63,14 +63,12 @@ class Grid:
 
     def get_neighborhood(self, row_idx, col_idx):
         #copy neighborhood surrounding cell location
-        neighborhood = np.zeros(shape=(3, 3), dtype=np.bool)
-        neighborhood = self.current_states[row_idx-1:row_idx+2, col_idx-1:col_idx+2].copy()
+        neighborhood = self.current_states[row_idx-1:row_idx+2, col_idx-1:col_idx+2].clone().detach().cuda()
         neighborhood[1, 1] = 0
         return neighborhood
 
     def update_current_states(self):
         #capture 2d bool array of current states
-        self.current_states = np.zeros(shape=(self.num_rows, self.num_columns), dtype=np.bool)
         for column in range(self.num_columns):
             for row in range(self.num_rows):
                 self.current_states[row, column] = self.cells[column][row].alive
@@ -133,13 +131,13 @@ class Cell:
     def set_neighbors(self, neighborhood):
         self.cell_logic.set_neighbors(neighborhood)
 
-    def toggle_cell(self, revive=True):
+    def toggle_cell(self, revive):
         if revive:
-            self.cell_logic.alive = 1
-            self.cell_visual.alive = 1
+            self.cell_logic.alive = True
+            self.cell_visual.alive = True
         else:
-            self.cell_logic.alive = 0
-            self.cell_visual.alive = 0
+            self.cell_logic.alive = False
+            self.cell_visual.alive = False
 
 class CellVisual:
     def __init__(self, square_size, column_idx, row_idx, living=False):
@@ -165,8 +163,6 @@ class CellVisual:
         self.rect.move_ip(self.START_LOC)
 
         self.alive = living
-        self.neighborhood_array = np.zeros(shape=(3, 3), dtype=np.bool)
-        self.neighborhood_sum = 0
 
     def update(self):
         self.update_visual()
@@ -193,27 +189,20 @@ class CellVisual:
         else:
             inverse = [255-component for component in self.color]
             self.surface.fill(inverse)
-"""
-spec = [
-    ('column_idx', int32),
-    ('row_idx', int32), 
-    ('alive' int8),
-]
-@jitclass
-"""
+
+
 class CellLogic:
     def __init__(self, column_idx, row_idx, living=False):
         self.column_idx = column_idx
         self.row_idx = row_idx
 
         self.alive = living
-        self.neighborhood_array = np.zeros(shape=(3, 3), dtype=np.bool)
+        self.neighborhood_array = torch.zeros((3, 3), dtype=torch.bool).cuda()
         self.neighborhood_sum = 0
 
     def set_neighbors(self, neighborhood_array): 
         self.neighborhood_array = neighborhood_array
-        self.neighborhood_sum = int(neighborhood_array.sum())
-
+        self.neighborhood_sum = neighborhood_array.sum()
 
 class Ruleset:
     def __init__(self, name):
@@ -250,10 +239,10 @@ class Ruleset:
     def apply_rules(self, cell):
         if cell.alive:
             if cell.neighborhood_sum not in self.rule_set['survive']:
-                cell.toggle_cell(0) #kill cell
+                cell.toggle_cell(False) #kill cell
         else:
             if cell.neighborhood_sum in self.rule_set['born']:
-                cell.toggle_cell(1) #revive cell
+                cell.toggle_cell(True) #revive cell
 
     def add_tick(self):
         self.run_ticks += 1
