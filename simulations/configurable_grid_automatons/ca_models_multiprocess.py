@@ -25,6 +25,7 @@ class Grid:
         self.num_columns = self.SCREEN_SIZE[0] // self.CELL_SIZE
         self.num_rows = self.SCREEN_SIZE[1] // self.CELL_SIZE
         self.current_states = torch.zeros((self.num_rows, self.num_columns), dtype=torch.bool).cuda()
+        self.current_states_updates = torch.zeros((self.num_rows, self.num_columns), dtype=torch.bool)
         self.rule_set = Ruleset(rule_name)
         self.build_cells()
 
@@ -38,15 +39,6 @@ class Grid:
                 self.total_cells += 1
 
     def update(self):
-        self.update_states()
-        self.update_cells()
-    
-    def update_cells(self):
-        for cell_row in self.cells:
-            for cell in cell_row:
-                cell.update()
-
-    def update_states(self):
         self.update_current_states()
         
         for col_idx, cell_row in enumerate(self.cells):
@@ -58,6 +50,8 @@ class Grid:
                     neighborhood = self.get_neighborhood(row_idx, col_idx)
                     cell.set_neighbors(neighborhood)
                 self.rule_set.apply_rules(cell)
+                self.current_states_updates[row_idx, col_idx] = cell.cell_logic.alive
+                cell.cell_visual.update()
             
         self.rule_set.add_tick()
 
@@ -68,10 +62,13 @@ class Grid:
         return neighborhood
 
     def update_current_states(self):
+        self.current_states = self.current_states_updates.clone().detach().cuda()
+
+    def manual_update_states(self):
         #capture 2d bool array of current states
         for column in range(self.num_columns):
             for row in range(self.num_rows):
-                self.current_states[row, column] = self.cells[column][row].alive
+                self.current_states_updates[row, column] = self.cells[column][row].cell_logic.alive
 
     def set_rules(self, name):
         logging.info(f'Ending ruleset: {self.rule_set} after {self.rule_set.run_ticks} ticks')
@@ -109,18 +106,13 @@ class Grid:
             self.current_states[rminus, cminus],
             ]
 
+
 class Cell:
     def __init__(self, square_size, column_idx, row_idx, living=False):
         
         self.cell_logic = CellLogic(column_idx, row_idx, living=living)
         self.cell_visual = CellVisual(square_size, column_idx, row_idx, living=living)
         
-    @property
-    def alive(self):
-        if self.cell_logic.alive:
-            return True
-        return False
-
     @property
     def neighborhood_sum(self):
         return self.cell_logic.neighborhood_sum
@@ -138,6 +130,7 @@ class Cell:
         else:
             self.cell_logic.alive = False
             self.cell_visual.alive = False
+
 
 class CellVisual:
     def __init__(self, square_size, column_idx, row_idx, living=False):
@@ -204,6 +197,7 @@ class CellLogic:
         self.neighborhood_array = neighborhood_array
         self.neighborhood_sum = neighborhood_array.sum()
 
+
 class Ruleset:
     def __init__(self, name):
         RULE_SETS = {
@@ -237,7 +231,7 @@ class Ruleset:
         self.run_ticks = 0
     
     def apply_rules(self, cell):
-        if cell.alive:
+        if cell.cell_logic.alive:
             if cell.neighborhood_sum not in self.rule_set['survive']:
                 cell.toggle_cell(False) #kill cell
         else:
