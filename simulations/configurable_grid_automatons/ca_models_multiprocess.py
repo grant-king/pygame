@@ -48,10 +48,11 @@ class Grid:
                     pass    
                 else:
                     neighborhood = self.get_neighborhood(row_idx, col_idx)
-                    cell.set_neighbors(neighborhood)
+                    cell.cell_logic.update(neighborhood)
+                cell.cell_visual.update()
                 self.rule_set.apply_rules(cell)
                 self.current_states_updates[row_idx, col_idx] = cell.cell_logic.alive
-                cell.cell_visual.update()
+                
             
         self.rule_set.add_tick()
 
@@ -193,7 +194,7 @@ class CellLogic:
         self.neighborhood_array = torch.zeros((3, 3), dtype=torch.bool).cuda()
         self.neighborhood_sum = 0
 
-    def set_neighbors(self, neighborhood_array): 
+    def update(self, neighborhood_array): 
         self.neighborhood_array = neighborhood_array
         self.neighborhood_sum = neighborhood_array.sum()
 
