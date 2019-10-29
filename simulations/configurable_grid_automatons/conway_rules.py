@@ -1,10 +1,10 @@
 import pygame
 from pygame.locals import KEYDOWN, K_ESCAPE, QUIT
-from ca_models_multiprocess import Grid
+from ca_models_2 import Grid
 import random
 
-SCREEN_SIZE = [1000, 1000]
-CELL_SIZE = 15
+SCREEN_SIZE = [1200, 600]
+CELL_SIZE = 10
 BACKGROUND_COLOR = [0, 0, 0]
 DEAD_RATIO = 1 / 3
 
@@ -36,7 +36,7 @@ def main_loop():
     running = True
     while running:
         events = pygame.event.get()
-        clock.tick(30)
+        clock.tick(19)
         running = listen_quit(events)
 
         grid.update()
