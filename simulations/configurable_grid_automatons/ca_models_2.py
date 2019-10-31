@@ -14,9 +14,10 @@ logging.basicConfig(
     )
 
 class Grid:
-    def __init__(self, cell_size, rule_name):
+    def __init__(self, cell_size, rule_name, aging=False):
         self.SCREEN_SIZE = pygame.display.get_surface().get_size()
         self.CELL_SIZE = cell_size
+        self.aging = aging
 
         self.cells = []
         self.total_cells = 0
@@ -39,7 +40,7 @@ class Grid:
 
     def update(self):
         self.update_current_states()
-        
+        #update 
         for col_idx, cell_row in enumerate(self.cells):
             for row_idx, cell in enumerate(cell_row):
                 # todo if first or last, wrap from edge
@@ -48,11 +49,10 @@ class Grid:
                 else:
                     neighborhood = self.get_neighborhood(row_idx, col_idx)
                     cell.cell_logic.update(neighborhood)
-                cell.cell_visual.update()
+                cell.cell_visual.update(self.aging)
                 self.rule_set.apply_rules(cell)
                 self.current_states_updates[row_idx, col_idx] = cell.cell_logic.alive
                 
-            
         self.rule_set.add_tick()
 
     def get_neighborhood(self, row_idx, col_idx):
@@ -144,9 +144,10 @@ class CellVisual:
         self.row_idx = row_idx
 
         red = random.randint(150, 250)
-        green = random.randint(5, 25)
+        green = random.randint(20, 50)
         blue = random.randint(green, red)
-        self.color = [red, green, blue]
+        #self.color = [red, green, blue]
+        self.color_floats = [float(red), float(green), float(blue)]
         self.original_color = [red, green, blue]
         self.size = [square_size, square_size]
         self.surface = pygame.Surface(self.size)
@@ -156,8 +157,15 @@ class CellVisual:
         self.rect.move_ip(self.START_LOC)
 
         self.alive = living
+        self.history = [0 for item in range(10)] #last n states
 
-    def update(self):
+    @property
+    def color(self):
+        return [int(self.color_floats[idx]) for idx in range(3)]
+
+    def update(self, aging):
+        if aging:
+            self.age_color()
         self.update_visual()
         self.draw()
 
@@ -165,17 +173,25 @@ class CellVisual:
         main_window = pygame.display.get_surface()
         main_window.blit(self.surface, self.rect)
 
-    def age_color(self, older=True):
+    def age_color(self):
+        #get current state
+        self.history.append(self.alive)
+        history_avg = sum(self.history) / len(self.history)
         for idx, component in enumerate(self.color):
-            if older:
-                if component < 245:
-                    self.color[idx] += 1
-            else:
-                if component > 20:
-                    self.color[idx] -= 1
-                else:
-                    self.color[idx] = random.choice([self.original_color[idx], random.randint((idx + 1) * 25, (idx + 1) * 50)])
-    
+            if self.history[-2]: # if last state was alive, age towards white
+                if component < 235:
+                    self.color_floats[idx] += history_avg / 2 #add according to average of last n states
+            else:# otherwise decrease red and blue color components
+                if idx == 0 or idx == 2:
+                    if component > 20: 
+                        self.color_floats[idx] -= 0.75 #control darkening rate
+                    else:
+                        #self.color_floats[idx] = float(random.choice([self.original_color[idx], random.randint((idx + 1) * 25, (idx + 1) * 50)]))
+                        #print(f"Cell {self.__repr__} has reset {list(['red', 'green', 'blue'])[idx]} component to {self.color[idx]}.")
+                        self.color_floats[idx] = self.original_color[idx]
+        #shift history
+        self.history.pop(0)
+
     def update_visual(self):
         if self.alive:
             self.surface.fill(self.color)
@@ -249,4 +265,20 @@ class Ruleset:
     def __str__(self):
         return f'{self.name}'
 
-        
+class Capture:
+    def __init__(self, grid):
+        self.rule_name = grid.rule_set.name
+        os.chdir('D:/chaos')
+        newdir = f'{self.rule_name}_{len(os.listdir()) + 1}'
+        os.mkdir(f'./{newdir}/')
+        os.chdir(f'./{newdir}')
+        self.main_window = pygame.display.get_surface()
+    
+    @property
+    def capture_counter(self):
+        return len(os.listdir())
+
+    def screen_shot(self):
+        filename = f'shot_{self.capture_counter}.png'
+        pygame.image.save(self.main_window, filename)
+
