@@ -3,6 +3,7 @@ import random
 import os
 import logging
 import numpy as np
+import cv2
 
 from time import time, ctime
 
@@ -146,7 +147,7 @@ class CellVisual:
         red = random.randint(150, 250)
         green = random.randint(20, 50)
         blue = random.randint(green, red)
-        #self.color = [red, green, blue]
+        
         self.color_floats = [float(red), float(green), float(blue)]
         self.original_color = [red, green, blue]
         self.size = [square_size, square_size]
@@ -157,11 +158,15 @@ class CellVisual:
         self.rect.move_ip(self.START_LOC)
 
         self.alive = living
-        self.history = [0 for item in range(10)] #last n states
+        self.history = np.zeros(10, dtype=np.bool)
 
     @property
     def color(self):
         return [int(self.color_floats[idx]) for idx in range(3)]
+
+    @property
+    def history_avg(self):
+        return self.history.sum() / len(self.history)
 
     def update(self, aging):
         if aging:
@@ -175,22 +180,20 @@ class CellVisual:
 
     def age_color(self):
         #get current state
-        self.history.append(self.alive)
-        history_avg = sum(self.history) / len(self.history)
+        self.history = np.append(self.history, self.alive)
+    
         for idx, component in enumerate(self.color):
             if self.history[-2]: # if last state was alive, age towards white
                 if component < 235:
-                    self.color_floats[idx] += history_avg / 2 #add according to average of last n states
+                    self.color_floats[idx] += self.history_avg / 2 #add according to average of last n states
             else:# otherwise decrease red and blue color components
                 if idx == 0 or idx == 2:
                     if component > 20: 
                         self.color_floats[idx] -= 0.75 #control darkening rate
                     else:
-                        #self.color_floats[idx] = float(random.choice([self.original_color[idx], random.randint((idx + 1) * 25, (idx + 1) * 50)]))
-                        #print(f"Cell {self.__repr__} has reset {list(['red', 'green', 'blue'])[idx]} component to {self.color[idx]}.")
                         self.color_floats[idx] = self.original_color[idx]
         #shift history
-        self.history.pop(0)
+        self.history = np.delete(self.history, 0)
 
     def update_visual(self):
         if self.alive:
@@ -198,7 +201,7 @@ class CellVisual:
         else:
             inverse = [255-component for component in self.color]
             self.surface.fill(inverse)
-
+            
 
 class CellLogic:
     def __init__(self, column_idx, row_idx, living=False):
@@ -220,7 +223,7 @@ class Ruleset:
             'conway': {'survive': [2, 3], 'born': [3]},
             'amoeba': {'survive': [1, 3, 5, 8], 'born': [3, 5, 7]},
             '2x2': {'survive': [1, 2, 5], 'born': [3, 6]}, 
-            '34life': {'survive': [3, 4], 'born': [3, 4]},
+            'life34': {'survive': [3, 4], 'born': [3, 4]},
             'assimilation': {'survive': [4, 5, 6, 7], 'born': [3, 4, 5]},
             'coagulations': {'survive': [2, 3, 5, 6, 7, 8], 'born': [3, 7, 8]},
             'coral': {'survive': [4, 5, 6, 7, 8], 'born': [3]},
@@ -267,18 +270,25 @@ class Ruleset:
 
 class Capture:
     def __init__(self, grid):
-        self.rule_name = grid.rule_set.name
-        os.chdir('D:/chaos')
-        newdir = f'{self.rule_name}_{len(os.listdir()) + 1}'
-        os.mkdir(f'./{newdir}/')
-        os.chdir(f'./{newdir}')
         self.main_window = pygame.display.get_surface()
-    
-    @property
-    def capture_counter(self):
-        return len(os.listdir())
+        self.rule_name = grid.rule_set.name
+        self.grid = grid
+        self.capture_counter = 1
+        self.main_dir = 'D:/chaos'
+        extension_id = len(os.listdir(self.main_dir)) + 1
+        self.screenshot_dir = f'{self.rule_name}_{extension_id}'
+
+        os.chdir(self.main_dir)
+        os.mkdir(f'./{self.screenshot_dir}/')
+        os.chdir(f'./{self.screenshot_dir}/')
 
     def screen_shot(self):
-        filename = f'shot_{self.capture_counter}.png'
+        filename = f'{self.main_dir}/{self.screenshot_dir}/shot_{self.capture_counter}.png'
         pygame.image.save(self.main_window, filename)
+        self.capture_counter += 1
 
+    def state_shot(self):
+        #capture cell active states as b&w png
+        filename = f'step_{self.capture_counter}.png'
+        states = np.array(self.grid.current_states, dtype=np.int8)
+        cv2.imwrite(filename, states)
