@@ -247,14 +247,16 @@ class Ruleset:
         self.init_time = time()
         self.name = name
         self.rule_set = RULE_SETS[self.name]
+        self.rule_survive = np.array(self.rule_set['survive'], np.int8)
+        self.rule_born = np.array(self.rule_set['born'], np.int8)
         self.run_ticks = 0
     
     def apply_rules(self, cell):
         if cell.cell_logic.alive:
-            if cell.neighborhood_sum not in self.rule_set['survive']:
+            if cell.neighborhood_sum not in self.rule_survive:
                 cell.toggle_cell(False) #kill cell
         else:
-            if cell.neighborhood_sum in self.rule_set['born']:
+            if cell.neighborhood_sum in self.rule_born:
                 cell.toggle_cell(True) #revive cell
 
     def add_tick(self):
@@ -268,12 +270,12 @@ class Ruleset:
     def __str__(self):
         return f'{self.name}'
 
+
 class Capture:
     def __init__(self, grid):
         self.main_window = pygame.display.get_surface()
         self.rule_name = grid.rule_set.name
         self.grid = grid
-        self.capture_counter = 1
         self.main_dir = 'D:/chaos'
         extension_id = len(os.listdir(self.main_dir)) + 1
         self.screenshot_dir = f'{self.rule_name}_{extension_id}'
@@ -282,13 +284,34 @@ class Capture:
         os.mkdir(f'./{self.screenshot_dir}/')
         os.chdir(f'./{self.screenshot_dir}/')
 
+    @property
+    def step_counter(self):
+        return self.grid.rule_set.run_ticks
+
     def screen_shot(self):
-        filename = f'{self.main_dir}/{self.screenshot_dir}/shot_{self.capture_counter}.png'
+        filename = f'{self.main_dir}/{self.screenshot_dir}/shot_{self.step_counter}.png'
         pygame.image.save(self.main_window, filename)
-        self.capture_counter += 1
 
     def state_shot(self):
         #capture cell active states as b&w png
-        filename = f'step_{self.capture_counter}.png'
-        states = np.array(self.grid.current_states, dtype=np.int8)
+        filename = f'step_{self.step_counter}.png'
+        states = np.array(self.grid.current_states, dtype=np.int8) * 255
         cv2.imwrite(filename, states)
+
+    def load_state_shot(self, map_path):
+        #load from existing state map
+        state_map = cv2.imread(map_path)
+        alive_coordinates = []
+        for column in range(self.grid.num_columns):
+            for row in range(self.grid.num_rows):
+                if 0 not in state_map[row, column]:
+                    self.grid.cells[column][row].toggle_cell(1)
+            
+    def load_image(self, image_path):
+        image_data = cv2.imread(image_path)
+        alive_coordinates = []
+        for column in range(self.grid.num_columns):
+            for row in range(self.grid.num_rows):
+                if 0 not in image_data[row, column]:
+                    self.grid.cells[column][row].toggle_cell(1)
+
