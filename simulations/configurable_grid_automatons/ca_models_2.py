@@ -4,6 +4,8 @@ import os
 import logging
 import numpy as np
 import cv2
+#from pygame.locals import *
+from pygame.locals import KEYDOWN, QUIT, K_ESCAPE, K_l, K_i, K_r
 
 from time import time, ctime
 
@@ -13,6 +15,57 @@ logging.basicConfig(
     format = '%(levelname)s: %(message)s', 
     filemode='a'
     )
+
+class Control:
+    def __init__(self, capture):
+        self.capture = capture
+
+    def catch_events(self, events):
+        self.events = events
+
+    @property
+    def running(self):
+        self.catch_events(pygame.event.get())
+        self.listen()
+        return self.listen_quit()
+
+    def listen_quit(self):
+        #return condition to continue game
+        for event in self.events:
+            if event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    return False
+            elif event.type == QUIT:
+                return False
+        return True
+
+    def listen(self):
+    #listen for button presses and refer to handlers
+        for event in self.events:
+            if event.type == KEYDOWN:
+                if event.key == K_l:
+                    self.load_state_handler()
+                if event.key == K_i:
+                    self.load_image_handler()
+                if event.key == K_r:
+                    self.change_ruleset_handler()
+
+    def load_state_handler(self):
+        self.map_file_dir = input("type the directory name to load, within D:/chaos/: ")
+        self.map_file_name = input(f"type the file name to load, within within D:/chaos/{self.map_file_dir}/: ")
+
+        self.capture.load_state_shot(f'D:/chaos/{self.map_file_dir}/{self.map_file_name}')
+
+    def load_image_handler(self):
+        self.image_file_dir = input("type the directory name to load: ")
+        self.image_file_name = input(f"type the file name to load, within within D:/chaos/{self.map_file_dir}/: ")
+
+        self.capture.load_image(f'{self.image_file_dir}/{self.image_file_name}')
+
+    def change_ruleset_handler(self):
+        new_ruleset = input("type new ruleset name: ")
+        self.capture.grid.set_rules(new_ruleset)
+
 
 class Grid:
     def __init__(self, cell_size, rule_name, aging=False):
@@ -306,6 +359,8 @@ class Capture:
             for row in range(self.grid.num_rows):
                 if 0 not in state_map[row, column]:
                     self.grid.cells[column][row].toggle_cell(1)
+
+        self.grid.manual_update_states()
             
     def load_image(self, image_path):
         image_data = cv2.imread(image_path)
