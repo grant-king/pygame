@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import cv2
 #from pygame.locals import *
-from pygame.locals import KEYDOWN, QUIT, K_ESCAPE, K_l, K_i, K_r
+from pygame.locals import KEYDOWN, QUIT, K_ESCAPE, K_l, K_i, K_r, K_s
 
 from time import time, ctime
 
@@ -49,6 +49,11 @@ class Control:
                     self.load_image_handler()
                 if event.key == K_r:
                     self.change_ruleset_handler()
+                if event.key == K_s:
+                    self.save_image_handler()
+
+    def save_image_handler(self):
+        self.capture.save_image()
 
     def load_state_handler(self):
         self.map_file_dir = input("type the directory name to load, within D:/chaos/: ")
@@ -58,9 +63,10 @@ class Control:
 
     def load_image_handler(self):
         self.image_file_dir = input("type the directory name to load: ")
-        self.image_file_name = input(f"type the file name to load, within within D:/chaos/{self.map_file_dir}/: ")
+        self.image_file_name = input(f"type the file name to load, within within {self.image_file_dir}/: ")
 
         self.capture.load_image(f'{self.image_file_dir}/{self.image_file_name}')
+        
 
     def change_ruleset_handler(self):
         new_ruleset = input("type new ruleset name: ")
@@ -117,6 +123,9 @@ class Grid:
 
     def update_current_states(self):
         self.current_states = self.current_states_updates.copy()
+
+    def all_on_visual_only(self):
+        pass           
 
     def manual_update_states(self):
         #capture 2d bool array of current states
@@ -177,6 +186,9 @@ class Cell:
     def set_neighbors(self, neighborhood):
         self.cell_logic.set_neighbors(neighborhood)
 
+    def set_color(self, new_color):
+        self.cell_visual.set_color(new_color)
+
     def toggle_cell(self, revive):
         if revive:
             self.cell_logic.alive = True
@@ -230,6 +242,12 @@ class CellVisual:
     def draw(self):
         main_window = pygame.display.get_surface()
         main_window.blit(self.surface, self.rect)
+
+    def set_color(self, new_color):
+        blue, green, red = new_color
+        
+        self.color_floats = [float(red), float(green), float(blue)]
+        self.original_color = [red, green, blue]
 
     def age_color(self):
         #get current state
@@ -331,7 +349,9 @@ class Capture:
         self.grid = grid
         self.main_dir = 'D:/chaos'
         extension_id = len(os.listdir(self.main_dir)) + 1
-        self.screenshot_dir = f'{self.rule_name}_{extension_id}'
+        self.screenshot_dir = f'CGA_{grid.num_columns}x{grid.num_rows}_{extension_id}'
+
+        self.shot_counter = 1
 
         os.chdir(self.main_dir)
         os.mkdir(f'./{self.screenshot_dir}/')
@@ -342,8 +362,9 @@ class Capture:
         return self.grid.rule_set.run_ticks
 
     def screen_shot(self):
-        filename = f'{self.main_dir}/{self.screenshot_dir}/shot_{self.step_counter}.png'
+        filename = f'{self.main_dir}/{self.screenshot_dir}/shot_{self.shot_counter}.png'
         pygame.image.save(self.main_window, filename)
+        self.shot_counter += 1
 
     def state_shot(self):
         #capture cell active states as b&w png
@@ -354,19 +375,38 @@ class Capture:
     def load_state_shot(self, map_path):
         #load from existing state map
         state_map = cv2.imread(map_path)
-        alive_coordinates = []
+    
         for column in range(self.grid.num_columns):
             for row in range(self.grid.num_rows):
                 if 0 not in state_map[row, column]:
                     self.grid.cells[column][row].toggle_cell(1)
-
         self.grid.manual_update_states()
             
     def load_image(self, image_path):
+        THRESHOLD = 220
         image_data = cv2.imread(image_path)
-        alive_coordinates = []
+        resized = cv2.resize(image_data, (self.grid.num_columns, self.grid.num_rows))
+
         for column in range(self.grid.num_columns):
             for row in range(self.grid.num_rows):
-                if 0 not in image_data[row, column]:
+                self.grid.cells[column][row].set_color(resized[row, column])
+                if sum(resized[row, column]) > THRESHOLD:
                     self.grid.cells[column][row].toggle_cell(1)
+                else:
+                    self.grid.cells[column][row].toggle_cell(0)
+        self.grid.manual_update_states()
 
+    def save_image(self):
+        filename = f'{self.main_dir}/{self.screenshot_dir}/image_{self.shot_counter}.png'
+
+        save_states = self.grid.current_states.copy()
+        all_on = np.full_like(save_states, 1)
+        self.grid.current_states = all_on
+
+        for cell_row in self.grid.cells:
+            for cell in cell_row:
+                cell.cell_visual.surface.fill(cell.cell_visual.color)
+                cell.cell_visual.draw()
+        pygame.image.save(self.main_window, filename)
+
+        self.grid.current_states = save_states
