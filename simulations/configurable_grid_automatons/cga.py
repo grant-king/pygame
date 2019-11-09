@@ -6,7 +6,7 @@ import os
 import cv2
 
 SCREEN_SIZE = [1600, 900]
-CELL_SIZE = 10
+CELL_SIZE = 5
 BACKGROUND_COLOR = [0, 0, 0]
 DEAD_RATIO = 2 / 7
 
@@ -17,7 +17,7 @@ def main_loop():
     clock = pygame.time.Clock()
     main_window = pygame.display.set_mode(SCREEN_SIZE)
     
-    grid = Grid(CELL_SIZE, 'coral', aging=1)
+    grid = Grid(CELL_SIZE, 'replicator', aging=1)
     capture = Capture(grid)
     control = Control(capture)
     
@@ -28,7 +28,7 @@ def main_loop():
         if row_idx in seedline_cols:
             for cell in cell_row:
                 cell.toggle_cell(random.choice(chances))
-    
+     
     grid.manual_update_states()
 
     while control.running:
@@ -40,6 +40,7 @@ def main_loop():
         pygame.display.flip()
     #capture last state before quit        
     capture.state_shot()
+    capture.save_image()
     pygame.quit()
 
 if __name__ == '__main__':
