@@ -255,14 +255,13 @@ class CellVisual:
     
         for idx, component in enumerate(self.color):
             if self.history[-2]: # if last state was alive, age towards white
-                if component < 235:
+                if component < 250:
                     self.color_floats[idx] += self.history_avg / 2 #add according to average of last n states
-            else:# otherwise decrease red and blue color components
-                if idx == 0 or idx == 2:
-                    if component > 20: 
-                        self.color_floats[idx] -= 0.75 #control darkening rate
-                    else:
-                        self.color_floats[idx] = self.original_color[idx]
+            else:# otherwise decrease color components
+                if component > 20: 
+                    self.color_floats[idx] -= component / 250 #control darkening rate
+                else:
+                    self.color_floats[idx] = self.original_color[idx]
         #shift history
         self.history = np.delete(self.history, 0)
 
@@ -342,6 +341,11 @@ class Ruleset:
         return f'{self.name}'
 
 
+class StepTimer:
+    def __init__(self):
+        pass
+
+
 class Capture:
     def __init__(self, grid):
         self.main_window = pygame.display.get_surface()
@@ -349,7 +353,7 @@ class Capture:
         self.grid = grid
         self.main_dir = 'D:/chaos'
         extension_id = len(os.listdir(self.main_dir)) + 1
-        self.screenshot_dir = f'CGA_{grid.num_columns}x{grid.num_rows}_{extension_id}'
+        self.screenshot_dir = f'{grid.rule_set.name}_{grid.num_columns}x{grid.num_rows}_{extension_id}'
 
         self.shot_counter = 1
 
@@ -383,14 +387,16 @@ class Capture:
         self.grid.manual_update_states()
             
     def load_image(self, image_path):
-        THRESHOLD = 220
+        
         image_data = cv2.imread(image_path)
         resized = cv2.resize(image_data, (self.grid.num_columns, self.grid.num_rows))
+
+        colorsum_threshold = np.sum(resized) // resized.size
 
         for column in range(self.grid.num_columns):
             for row in range(self.grid.num_rows):
                 self.grid.cells[column][row].set_color(resized[row, column])
-                if sum(resized[row, column]) > THRESHOLD:
+                if sum(resized[row, column]) > colorsum_threshold:
                     self.grid.cells[column][row].toggle_cell(1)
                 else:
                     self.grid.cells[column][row].toggle_cell(0)
