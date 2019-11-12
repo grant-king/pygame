@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import cv2
 #from pygame.locals import *
-from pygame.locals import KEYDOWN, QUIT, K_ESCAPE, K_l, K_i, K_r, K_s
+from pygame.locals import USEREVENT, KEYDOWN, QUIT, K_ESCAPE, K_l, K_i, K_r, K_s, K_t
 
 from time import time, ctime
 
@@ -17,14 +17,18 @@ logging.basicConfig(
     )
 
 class Control:
+
     def __init__(self, capture):
         self.capture = capture
+        self.step_clock = StepClock()
+        self.STATESHOTEVENT = USEREVENT + 1
 
     def catch_events(self, events):
         self.events = events
 
     @property
     def running(self):
+        self.step_clock.update()
         self.catch_events(pygame.event.get())
         self.listen()
         return self.listen_quit()
@@ -51,6 +55,23 @@ class Control:
                     self.change_ruleset_handler()
                 if event.key == K_s:
                     self.save_image_handler()
+                if event.key == K_t:
+                    self.set_timer_handler()
+            if event.type == self.STATESHOTEVENT:
+                self.state_shot_handler()
+
+    def set_timer_handler(self):
+        stateshot = input('type 1 to set stateshot timer or 0 to set end timer')
+        if int(stateshot):
+            timer_ticks = input("Type the steps frequency in to take a stateshot")
+            self.step_clock.set_timer(self.STATESHOTEVENT, int(timer_ticks))
+        else:
+            timer_ticks = input("In how many steps would you like to end the simulation?")
+            self.step_clock.set_timer(QUIT, int(timer_ticks))
+            print(f"Simulation will end in {timer_ticks} ticks")
+    
+    def state_shot_handler(self):
+        self.capture.state_shot()
 
     def save_image_handler(self):
         self.capture.save_image()
@@ -71,6 +92,35 @@ class Control:
     def change_ruleset_handler(self):
         new_ruleset = input("type new ruleset name: ")
         self.capture.grid.set_rules(new_ruleset)
+
+
+class StepClock:
+    def __init__(self):
+        self.timers = []
+
+    def set_timer(self, event_id, ticks):
+        new_timer = StepTimer(event_id, ticks)
+        self.timers.append(new_timer)
+
+    def update(self):
+        for timer in self.timers:
+            timer.update()
+
+
+class StepTimer:
+    #post event event_id every delay_ticks ticks
+    def __init__(self, event_id, ticks):
+        self.event_id = event_id
+        self.event = pygame.event.Event(event_id)
+        self.timer_ticks = ticks
+        self.ticks_remaining = ticks
+        
+    def update(self):
+        if self.ticks_remaining > 0:
+            self.ticks_remaining -= 1
+        else:
+            pygame.event.post(self.event)
+            self.ticks_remaining = self.timer_ticks - 1
 
 
 class Grid:
@@ -97,6 +147,18 @@ class Grid:
             for row_idx in range(self.num_rows):
                 self.cells[col_idx][row_idx] = Cell(self.CELL_SIZE, col_idx, row_idx)
                 self.total_cells += 1
+
+    def random_seed(self):
+        DEAD_RATIO = 2 / 7
+        chances = list([1 for dead in range(int(1 / DEAD_RATIO - 1))])
+        chances.append(0)
+        seedline_cols = set([random.randrange(grid.num_columns) for column in range(random.randrange(10, grid.num_columns//5))])
+        for row_idx, cell_row in enumerate(self.cells):
+            if row_idx in seedline_cols:
+                for cell in cell_row:
+                    cell.toggle_cell(random.choice(chances))
+        
+        self.manual_update_states()
 
     def update(self):
         self.update_current_states()
@@ -341,11 +403,6 @@ class Ruleset:
         return f'{self.name}'
 
 
-class StepTimer:
-    def __init__(self):
-        pass
-
-
 class Capture:
     def __init__(self, grid):
         self.main_window = pygame.display.get_surface()
@@ -390,13 +447,12 @@ class Capture:
         
         image_data = cv2.imread(image_path)
         resized = cv2.resize(image_data, (self.grid.num_columns, self.grid.num_rows))
-
-        colorsum_threshold = np.sum(resized) // resized.size
+        edges = cv2.Canny(resized, 100, 250, L2gradient=True)
 
         for column in range(self.grid.num_columns):
             for row in range(self.grid.num_rows):
                 self.grid.cells[column][row].set_color(resized[row, column])
-                if sum(resized[row, column]) > colorsum_threshold:
+                if edges[row, column]: #activate cells corresponding to edges mask
                     self.grid.cells[column][row].toggle_cell(1)
                 else:
                     self.grid.cells[column][row].toggle_cell(0)
