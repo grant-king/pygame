@@ -6,7 +6,6 @@ import numpy as np
 import cv2
 #from pygame.locals import *
 from pygame.locals import USEREVENT, KEYDOWN, QUIT, K_ESCAPE, K_l, K_i, K_r, K_s, K_t
-
 from time import time, ctime
 
 logging.basicConfig(
@@ -17,7 +16,6 @@ logging.basicConfig(
     )
 
 class Control:
-
     def __init__(self, capture):
         self.capture = capture
         self.step_clock = StepClock()
@@ -61,14 +59,14 @@ class Control:
                 self.state_shot_handler()
 
     def set_timer_handler(self):
-        stateshot = input('type 1 to set stateshot timer or 0 to set end timer')
+        stateshot = input('type 1 to set stateshot timer or 0 to set end timer: ')
         if int(stateshot):
-            timer_ticks = input("Type the steps frequency in to take a stateshot")
+            timer_ticks = input("Type the steps frequency in to take a stateshot: ")
             self.step_clock.set_timer(self.STATESHOTEVENT, int(timer_ticks))
         else:
-            timer_ticks = input("In how many steps would you like to end the simulation?")
+            timer_ticks = input("In how many steps would you like to end the simulation? ")
             self.step_clock.set_timer(QUIT, int(timer_ticks))
-            print(f"Simulation will end in {timer_ticks} ticks")
+            print(f"Simulation will end in {timer_ticks} ticks.")
     
     def state_shot_handler(self):
         self.capture.state_shot()
@@ -87,7 +85,6 @@ class Control:
         self.image_file_name = input(f"type the file name to load, within within {self.image_file_dir}/: ")
 
         self.capture.load_image(f'{self.image_file_dir}/{self.image_file_name}')
-        
 
     def change_ruleset_handler(self):
         new_ruleset = input("type new ruleset name: ")
@@ -140,6 +137,7 @@ class Grid:
         self.build_cells()
 
         logging.info(f'Grid initialized with {self.rule_set.name} rule at {ctime()} with {self.total_cells} cells')
+        print(f'Grid initialized with {self.rule_set.name} rule at {ctime()} with {self.total_cells} cells')
 
     def build_cells(self):
         self.cells = [[0 for row in range(self.num_rows)] for column in range(self.num_columns)]
@@ -152,19 +150,19 @@ class Grid:
         DEAD_RATIO = 2 / 7
         chances = list([1 for dead in range(int(1 / DEAD_RATIO - 1))])
         chances.append(0)
-        seedline_cols = set([random.randrange(grid.num_columns) for column in range(random.randrange(10, grid.num_columns//5))])
-        for row_idx, cell_row in enumerate(self.cells):
-            if row_idx in seedline_cols:
-                for cell in cell_row:
+        seedline_cols = set([random.randrange(self.num_columns) for column in range(random.randrange(10, self.num_columns//5))])
+        for col_idx, cell_col in enumerate(self.cells):
+            if col_idx in seedline_cols:
+                for cell in cell_col:
                     cell.toggle_cell(random.choice(chances))
         
         self.manual_update_states()
 
     def update(self):
         self.update_current_states()
-        #update 
-        for col_idx, cell_row in enumerate(self.cells):
-            for row_idx, cell in enumerate(cell_row):
+
+        for col_idx, cell_col in enumerate(self.cells):
+            for row_idx, cell in enumerate(cell_col):
                 # todo if first or last, wrap from edge
                 if row_idx == 0 or row_idx == self.num_rows or col_idx == 0 or col_idx == self.num_columns:
                     pass    
@@ -174,7 +172,7 @@ class Grid:
                 cell.cell_visual.update(self.aging)
                 self.rule_set.apply_rules(cell)
                 self.current_states_updates[row_idx, col_idx] = cell.cell_logic.alive
-                
+        
         self.rule_set.add_tick()
 
     def get_neighborhood(self, row_idx, col_idx):
@@ -352,25 +350,33 @@ class CellLogic:
 class Ruleset:
     def __init__(self, name):
         RULE_SETS = {
-            'conway': {'survive': [2, 3], 'born': [3]},
-            'amoeba': {'survive': [1, 3, 5, 8], 'born': [3, 5, 7]},
             '2x2': {'survive': [1, 2, 5], 'born': [3, 6]}, 
-            'life34': {'survive': [3, 4], 'born': [3, 4]},
+            'amoeba': {'survive': [1, 3, 5, 8], 'born': [3, 5, 7]},
             'assimilation': {'survive': [4, 5, 6, 7], 'born': [3, 4, 5]},
             'coagulations': {'survive': [2, 3, 5, 6, 7, 8], 'born': [3, 7, 8]},
             'coral': {'survive': [4, 5, 6, 7, 8], 'born': [3]},
+            'conway': {'survive': [2, 3], 'born': [3]},
             'daynight': {'survive': [3, 4, 6, 7, 8], 'born': [3, 6, 7, 8]},
             'diamoeba': {'survive': [5, 6, 7, 8], 'born': [3, 5, 6, 7, 8]},
-            'flakes': {'survive': [0, 1, 2, 3, 4, 5, 6, 7, 8], 'born': [3]}, 
+            'electrifiedmaze': {'survive': [1, 2, 3, 4, 5], 'born': [4, 5]}, 
+            'flakes': {'survive': [0, 1, 2, 3, 4, 5, 6, 7, 8], 'born': [3]},
+            'flock': {'survive': [1, 2], 'born': [3]},
+            'fredkin': {'survive': [0, 2, 4, 6, 8], 'born': [1, 3, 5, 7]}, 
             'gnarl': {'survive': [1], 'born': [1]}, 
             'highlife': {'survive': [2, 3], 'born': [3, 6]}, 
+            'honeylife': {'survive': [2, 3, 8], 'born': [3, 8]}, 
             'inverselife': {'survive': [3, 4, 6, 7, 8], 'born': [0, 1, 2, 3, 4, 7, 8]}, 
+            'ironflock': {'survive': [0, 2, 3], 'born': [3]},
             'longlife': {'survive': [5], 'born': [3, 4, 5]},
+            'life34': {'survive': [3, 4], 'born': [3, 4]},
+            'lfod': {'survive': [0], 'born': [2]},
             'maze': {'survive': [1, 2, 3, 4, 5], 'born': [3]}, 
             'mazectric': {'survive': [1, 2, 3, 4], 'born': [3]}, 
             'move': {'survive': [2, 4, 5], 'born': [3, 6, 8]},
+            'pedestrianlife': {'survive': [2, 3], 'born': [3, 8]},
             'pseudolife': {'survive': [2, 3, 8], 'born': [3, 5, 7]}, 
             'replicator': {'survive': [1, 3, 5, 7], 'born': [1, 3, 5, 7]}, 
+            'replicatorlog': {'survive': [2, 4, 5], 'born': [3, 6]}, 
             'seeds': {'survive': [], 'born': [2]}, 
             'serviettes': {'survive': [], 'born': [2, 3, 4]},
             'stains': {'survive': [2, 3, 5, 6, 7, 8], 'born': [3, 6, 7, 8]},
@@ -465,8 +471,8 @@ class Capture:
         all_on = np.full_like(save_states, 1)
         self.grid.current_states = all_on
 
-        for cell_row in self.grid.cells:
-            for cell in cell_row:
+        for cell_col in self.grid.cells:
+            for cell in cell_col:
                 cell.cell_visual.surface.fill(cell.cell_visual.color)
                 cell.cell_visual.draw()
         pygame.image.save(self.main_window, filename)
